@@ -125,38 +125,50 @@ CouponCalculator/
 │   ├── DiscountDetail.cs            # 优惠明细
 │   ├── Explanation.cs               # 解释说明
 │   ├── CouponTrialResult.cs         # 试算结果
-│   ├── CalculationLog.cs            # 计算日志
-│   ├── ScopeConfiguration.cs        # 适用范围配置 (新增)
-│   ├── EnhancedCalculationResult.cs # 增强计算结果 (新增)
-│   └── EnhancedCouponTrialResult.cs # 增强试算结果 (新增)
+│   ├── CalculationLog.cs             # 计算日志
+│   ├── ScopeConfiguration.cs        # 适用范围配置
+│   ├── EnhancedCalculationResult.cs  # 增强计算结果
+│   ├── EnhancedCouponTrialResult.cs  # 增强试算结果
+│   ├── RuleVersion.cs               # 规则版本管理 (新增)
+│   ├── ItemLevelBreakdown.cs        # 商品级分摊 (新增)
+│   ├── Reconciliation.cs             # 对账模型 (新增)
+│   ├── GrayRelease.cs               # 灰度发布 (新增)
+│   └── TemplateAndExplanation.cs     # 口径模板 (新增)
 ├── Engine/
-│   ├── CouponCalculatorEngine.cs    # 核心计算引擎
+│   ├── CouponCalculatorEngine.cs     # 核心计算引擎
 │   ├── IRuleProvider.cs             # 规则提供者接口
-│   ├── DefaultRuleProvider.cs       # 默认规则实现
-│   ├── CombinationOptimizer.cs      # 最优组合优化器
-│   └── EnhancedCombinationOptimizer.cs  # 增强组合优化器 (新增)
+│   ├── DefaultRuleProvider.cs        # 默认规则实现
+│   ├── CombinationOptimizer.cs       # 最优组合优化器
+│   └── EnhancedCombinationOptimizer.cs  # 增强组合优化器
 ├── Services/
 │   ├── ICouponValidator.cs          # 优惠券校验器接口
-│   ├── CouponValidator.cs           # 优惠券校验实现
-│   ├── EnhancedCouponValidator.cs   # 增强校验器 (新增)
+│   ├── CouponValidator.cs            # 优惠券校验实现
+│   ├── EnhancedCouponValidator.cs    # 增强校验器
 │   ├── IStackingEngine.cs           # 叠加引擎接口
-│   ├── StackingEngine.cs            # 叠加规则实现
-│   ├── ExplanationService.cs        # 解释服务
-│   └── EnhancedExplanationService.cs # 增强解释服务 (新增)
+│   ├── StackingEngine.cs             # 叠加规则实现
+│   ├── ExplanationService.cs         # 解释服务
+│   ├── EnhancedExplanationService.cs # 增强解释服务
+│   ├── RuleVersionManager.cs        # 版本管理 (新增)
+│   ├── ItemLevelAllocationService.cs # 商品级分摊 (新增)
+│   ├── ReconciliationService.cs      # 对账服务 (新增)
+│   ├── GrayReleaseManager.cs        # 灰度发布管理 (新增)
+│   ├── TemplatePlaybackService.cs    # 模板回放 (新增)
+│   ├── TemplateManagementService.cs  # 模板管理 (新增)
+│   └── ExportService.cs             # 导出服务 (新增)
 ├── Formatters/
-│   ├── IResultFormatter.cs          # 结果格式化接口
-│   ├── SimpleFormatter.cs           # 简洁格式
-│   ├── DetailedFormatter.cs         # 详细格式
+│   ├── IResultFormatter.cs           # 结果格式化接口
+│   ├── SimpleFormatter.cs            # 简洁格式
+│   ├── DetailedFormatter.cs          # 详细格式
 │   └── BillFormatter.cs             # 账单格式
 ├── Rules/
 │   ├── BaseRule.cs                  # 规则基类
 │   ├── AmountThresholdRule.cs        # 满金额规则
 │   ├── QuantityThresholdRule.cs      # 满件数规则
 │   ├── DiscountRateRule.cs          # 折扣规则
-│   ├── FreeShippingRule.cs          # 免运费规则
+│   ├── FreeShippingRule.cs           # 免运费规则
 │   └── MemberDiscountRule.cs        # 会员折扣规则
 └── Logs/
-    └── CalculationLogger.cs         # 计算日志记录器
+    └── CalculationLogger.cs          # 计算日志记录器
 
 CouponCalculator.Tests/               # 单元测试项目
 ├── CouponCalculatorEngineTests.cs
@@ -167,13 +179,20 @@ CouponCalculator.Tests/               # 单元测试项目
 ├── FormatterTests.cs
 ├── OptimalCombinationTests.cs
 ├── ExplanationAndLogTests.cs
-├── EdgeCaseTests.cs                  # 边界场景测试 (新增)
-└── EnhancedFeatureTests.cs           # 增强功能测试 (新增)
+├── EdgeCaseTests.cs
+├── EnhancedFeatureTests.cs
+├── RuleVersionTests.cs              # 版本管理测试 (新增)
+├── ReconciliationTests.cs            # 对账测试 (新增)
+├── BatchReconciliationTests.cs       # 批量对账测试 (新增)
+├── GrayReleaseTests.cs               # 灰度发布测试 (新增)
+└── TemplatePlaybackTests.cs          # 模板回放测试 (新增)
 
 CouponCalculator.Examples/            # 示例项目
 ├── UsageExamples.cs                  # 基础使用示例
-├── CompleteWorkflowExamples.cs       # 完整工作流示例 (新增)
-└── INTEGRATION_GUIDE.md              # 接入指南 (新增)
+├── CompleteWorkflowExamples.cs       # 完整工作流示例
+├── RealBusinessIntegrationExamples.cs # 真实业务联调示例 (新增)
+├── RealIntegrationWithErrorHandling.cs # 异常处理示例 (新增)
+└── INTEGRATION_GUIDE.md             # 接入指南
 ```
 
 ### 3.2 核心类设计
@@ -572,9 +591,77 @@ var coupon = new Coupon
 
 ---
 
-## 11. 版本历史
+## 11. 高级运营功能
+
+### 11.1 规则版本管理
+- 版本切换：支持同一批券规则多个版本共存
+- 定时切换：配置定时生效计划
+- 差异预览：切换前后查看规则差异
+- 审批流程：支持发布审批流程
+- **新增模型**: `RuleVersion`, `VersionSchedule`, `VersionDiff`
+
+### 11.2 灰度发布
+- 多维度灰度：支持按店铺、人群、渠道灰度放量
+- 百分比灰度：按用户Hash实现精准百分比控制
+- 标签灰度：支持特定标签用户优先体验
+- 区域灰度：按地域进行灰度发布
+- 发布前回放：支持批量回放历史订单验证效果
+- 差异对比：查看不同灰度范围的结算差异
+- **新增模型**: `GrayReleasePolicy`, `GrayScaleConfig`, `GrayTarget`, `GrayPlaybackResult`, `BatchPlaybackResult`
+- **新增服务**: `GrayReleaseManager`
+
+### 11.3 口径模板与回放
+- 快照保存：支持保存试算、下单、退款完整口径
+- 一键回放：同类订单可快速回放历史口径
+- 多视角说明：统一口径供客服、运营、财务查看
+- 相似模板：自动查找相似订单模板
+- 模板对比：对比两个模板的差异
+- **新增模型**: `CalculationTemplate`, `TemplateSnapshot`, `UnifiedExplanation`, `TemplatePlaybackResult`
+- **新增服务**: `TemplatePlaybackService`, `TemplateManagementService`
+
+### 11.4 批量对账
+- 按天对账：支持每日批量订单对账
+- 按活动对账：支持按营销活动批量对账
+- 差异筛选：筛选结算前后差异最大的订单
+- 异常检测：自动识别异常订单
+- 分组统计：按渠道、店铺、会员等级分组统计
+- 运营导出：支持CSV/Excel/JSON/HTML/PDF多种导出格式
+- **新增模型**: `BatchReconciliationRequest`, `BatchReconciliationResult`, `ReconciliationSummary`, `AnomalyOrder`
+- **新增服务**: `BatchReconciliationService`, `ExportService`
+
+### 11.5 商品级分摊
+- 商品级明细：每件商品分摊优惠券、会员折扣
+- 退款回放：退款时按同一口径重算
+- 多时点对比：试算、下单、支付前复算对比
+- 差异说明：生成运营可懂的差异报告
+- **新增模型**: `ItemLevelDiscountBreakdown`, `ItemDiscountAllocation`, `ReconciliationRecord`
+
+---
+
+## 12. 真实联调示例
+
+### 12.1 异常处理示例
+`RealIntegrationWithErrorHandling.cs` 包含：
+- 正常流程：完整结算流程
+- 接口超时：超时降级处理
+- 字段缺失：缺失字段检测和警告
+- 券状态变化：券状态变化检测
+- 部分失败：批量处理部分失败处理
+- 重试机制：失败自动重试
+
+### 12.2 真实业务示例
+`RealBusinessIntegrationExamples.cs` 包含：
+- 从外部加载商品数据
+- 从外部加载会员信息
+- 从外部加载优惠券
+- 完整结算流程集成
+
+---
+
+## 13. 版本历史
 
 ### v2.0 (当前版本)
+#### Phase 1 - 基础能力
 - **增强规则配置**: 支持商品、类目、门店、品牌、标签等多维度配置
 - **增强适用范围**: 支持正向指定和反向排除
 - **增强最优组合**: 返回多个候选方案及对比说明
@@ -582,3 +669,21 @@ var coupon = new Coupon
 - **增强撤销重算**: 支持撤销和相同参数重算
 - **完整边界测试**: 覆盖空订单、零金额、刚好门槛等场景
 - **完整示例文档**: 提供工作流示例和接入指南
+
+#### Phase 2 - 规则管理
+- **规则版本管理**: 支持版本切换、定时生效、差异预览
+- **商品级分摊**: 支持优惠券、会员折扣分摊到商品明细
+- **多时点对账**: 试算、下单、支付前复算对比
+
+#### Phase 3 - 灰度与模板
+- **灰度发布**: 支持按店铺、人群、渠道灰度放量
+- **批量回放**: 支持发布前批量回放历史订单
+- **口径模板**: 支持保存快照模板和一键回放
+- **统一口径**: 客服、运营、财务同一套说明
+
+#### Phase 4 - 批量对账与联调
+- **批量对账**: 支持按天/按活动批量对账
+- **异常检测**: 自动识别差异最大的异常订单
+- **运营导出**: CSV/Excel/JSON/HTML/PDF多种格式
+- **异常联调**: 接口超时、字段缺失、券状态变化处理
+- **真实业务示例**: 外部数据加载完整示例
