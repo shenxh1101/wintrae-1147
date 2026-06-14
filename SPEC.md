@@ -27,6 +27,7 @@
 - 设置收货信息（配送方式、地址）
 - 设置用户信息（用户等级、会员类型）
 - 设置订单金额（商品总额、运费）
+- 支持扩展数据（ExtendedData）用于自定义业务逻辑
 
 ### 2.2 优惠规则引擎
 - 加载优惠规则集（IRuleProvider）
@@ -39,17 +40,25 @@
 - 优惠券状态验证（有效期、已使用、门槛检查）
 - 优惠券适用商品过滤
 - 优惠券不可用原因返回
+- **新增**: 灵活的适用范围配置（指定商品、类目、门店、品牌）
+- **新增**: 排除范围配置（排除指定商品、类目、门店）
+- **新增**: 详细的使用条件（会员等级限制、用户限制、门店限制）
 
 ### 2.4 试算可用券
 - 试算单张优惠券可用性（TryApply）
 - 批量试算所有可用优惠券（GetAvailableCoupons）
 - 返回每张券的优惠金额和不可用原因
+- **新增**: 增强试算（TryApplyEnhanced）返回详细的校验过程
+- **新增**: 用户友好的解释说明（UserFriendlyExplanation）
 
 ### 2.5 最优组合计算
 - 自动选择最优优惠券组合（CalculateOptimal）
 - 支持多种组合策略：最大优惠、首次使用、优先高价值
 - 支持排除已使用券、已锁定券
 - 返回最优组合及其总优惠金额
+- **新增**: 增强计算（CalculateOptimalEnhanced）返回多个候选方案
+- **新增**: 方案对比（PlanComparison）包含各方案优缺点
+- **新增**: 结算页面数据结构（GetSettlementPageData）
 
 ### 2.6 优惠叠加规则
 - 支持叠加的优惠类型定义
@@ -63,25 +72,32 @@
 - 运费优惠与商品优惠的协同
 
 ### 2.8 会员折扣
-- 会员等级折扣率
+- 会员等级折扣率（Normal/Silver/Gold/Platinum/Diamond）
 - 会员专享价
 - 会员积分抵扣
 - 会员权益优先使用
+- 自动应用会员等级折扣
 
 ### 2.9 优惠原因解释
 - 解释优惠来源（WhyApplied）
 - 解释不可用原因（WhyNotApplied）
 - 返回结构化的优惠说明
+- **新增**: 增强解释服务（EnhancedExplanationService）
+- **新增**: 用户友好的文案生成
+- **新增**: 方案对比表生成
 
 ### 2.10 撤销试算
 - 撤销当前试算（Rollback）
 - 清除已应用的优惠券
 - 重置优惠状态
+- **新增**: 撤销最后一次计算（RollbackLastCalculation）
+- **新增**: 使用相同参数重算（RecalculateWithSameParameters）
 
 ### 2.11 展示文案生成
 - 格式化优惠明细（FormatDetails）
 - 生成用户友好的展示文案
 - 支持多种展示格式：简洁、详细、账单式
+- **新增**: 增强格式输出（FormatEnhancedResult）
 
 ### 2.12 计算过程记录
 - 记录详细计算日志（CalculationLog）
@@ -97,151 +113,222 @@
 CouponCalculator/
 ├── CouponCalculator.csproj          # 类库项目文件
 ├── Models/
+│   ├── Enums.cs                     # 枚举定义
 │   ├── OrderContext.cs              # 订单上下文
 │   ├── OrderItem.cs                 # 订单商品明细
-│   ├── Coupon.cs                    # 优惠券模型
+│   ├── Coupon.cs                    # 优惠券模型（含适用范围配置）
 │   ├── DiscountRule.cs              # 优惠规则模型
 │   ├── MemberInfo.cs                # 会员信息
 │   ├── ShippingInfo.cs              # 配送信息
-│   └── CalculationResult.cs         # 计算结果
+│   ├── CalculationResult.cs         # 计算结果
+│   ├── AppliedCoupon.cs             # 已应用优惠券
+│   ├── DiscountDetail.cs            # 优惠明细
+│   ├── Explanation.cs               # 解释说明
+│   ├── CouponTrialResult.cs         # 试算结果
+│   ├── CalculationLog.cs            # 计算日志
+│   ├── ScopeConfiguration.cs        # 适用范围配置 (新增)
+│   ├── EnhancedCalculationResult.cs # 增强计算结果 (新增)
+│   └── EnhancedCouponTrialResult.cs # 增强试算结果 (新增)
 ├── Engine/
 │   ├── CouponCalculatorEngine.cs    # 核心计算引擎
-│   ├── RuleProvider.cs              # 规则提供者接口
+│   ├── IRuleProvider.cs             # 规则提供者接口
 │   ├── DefaultRuleProvider.cs       # 默认规则实现
-│   └── CombinationOptimizer.cs      # 最优组合优化器
-├── Rules/
-│   ├── BaseRule.cs                  # 规则基类
-│   ├── AmountThresholdRule.cs       # 满金额规则
-│   ├── QuantityThresholdRule.cs     # 满件数规则
-│   ├── DiscountRateRule.cs          # 折扣规则
-│   ├── FreeShippingRule.cs          # 免运费规则
-│   └── MemberDiscountRule.cs        # 会员折扣规则
+│   ├── CombinationOptimizer.cs      # 最优组合优化器
+│   └── EnhancedCombinationOptimizer.cs  # 增强组合优化器 (新增)
 ├── Services/
 │   ├── ICouponValidator.cs          # 优惠券校验器接口
 │   ├── CouponValidator.cs           # 优惠券校验实现
+│   ├── EnhancedCouponValidator.cs   # 增强校验器 (新增)
 │   ├── IStackingEngine.cs           # 叠加引擎接口
 │   ├── StackingEngine.cs            # 叠加规则实现
-│   └── ExplanationService.cs        # 解释服务
+│   ├── ExplanationService.cs        # 解释服务
+│   └── EnhancedExplanationService.cs # 增强解释服务 (新增)
 ├── Formatters/
 │   ├── IResultFormatter.cs          # 结果格式化接口
 │   ├── SimpleFormatter.cs           # 简洁格式
 │   ├── DetailedFormatter.cs         # 详细格式
-│   └── BillFormatter.cs              # 账单格式
+│   └── BillFormatter.cs             # 账单格式
+├── Rules/
+│   ├── BaseRule.cs                  # 规则基类
+│   ├── AmountThresholdRule.cs        # 满金额规则
+│   ├── QuantityThresholdRule.cs      # 满件数规则
+│   ├── DiscountRateRule.cs          # 折扣规则
+│   ├── FreeShippingRule.cs          # 免运费规则
+│   └── MemberDiscountRule.cs        # 会员折扣规则
 └── Logs/
-    └── CalculationLogger.cs          # 计算日志记录器
+    └── CalculationLogger.cs         # 计算日志记录器
+
+CouponCalculator.Tests/               # 单元测试项目
+├── CouponCalculatorEngineTests.cs
+├── CouponCalculationTests.cs
+├── StackingTests.cs
+├── MemberDiscountTests.cs
+├── ShippingTests.cs
+├── FormatterTests.cs
+├── OptimalCombinationTests.cs
+├── ExplanationAndLogTests.cs
+├── EdgeCaseTests.cs                  # 边界场景测试 (新增)
+└── EnhancedFeatureTests.cs           # 增强功能测试 (新增)
+
+CouponCalculator.Examples/            # 示例项目
+├── UsageExamples.cs                  # 基础使用示例
+├── CompleteWorkflowExamples.cs       # 完整工作流示例 (新增)
+└── INTEGRATION_GUIDE.md              # 接入指南 (新增)
 ```
 
 ### 3.2 核心类设计
 
 #### CouponCalculatorEngine
 主引擎类，提供所有计算能力的入口。
+
 ```csharp
 public class CouponCalculatorEngine
 {
     // 订单上下文管理
-    OrderContext CreateOrderContext();
+    OrderContext CreateOrderContext(string orderId = "");
     void AddItem(OrderContext context, OrderItem item);
     void SetMember(OrderContext context, MemberInfo member);
     void SetShipping(OrderContext context, ShippingInfo shipping);
     
-    // 优惠计算
+    // 基础优惠计算
     CalculationResult CalculateOptimal(OrderContext context, IEnumerable<Coupon> coupons);
     CouponTrialResult TryApply(OrderContext context, Coupon coupon);
     IEnumerable<CouponTrialResult> GetAvailableCoupons(OrderContext context, IEnumerable<Coupon> coupons);
+    
+    // 增强优惠计算 (新增)
+    EnhancedCalculationResult CalculateOptimalEnhanced(OrderContext context, IEnumerable<Coupon> coupons);
+    EnhancedCouponTrialResult TryApplyEnhanced(OrderContext context, Coupon coupon);
+    IEnumerable<EnhancedCouponTrialResult> GetAvailableCouponsEnhanced(OrderContext context, IEnumerable<Coupon> coupons);
     
     // 规则管理
     void LoadRules(IRuleProvider ruleProvider);
     
     // 解释和日志
     Explanation Explain(Coupon coupon, OrderContext context);
+    EnhancedCouponTrialResult ExplainEnhanced(Coupon coupon, OrderContext context);
     string FormatDetails(CalculationResult result, DisplayFormat format);
+    string FormatEnhancedResult(EnhancedCalculationResult result, OrderContext context, DisplayFormat format);
+    Dictionary<string, object> GetSettlementPageData(EnhancedCalculationResult result, OrderContext context);
     CalculationLog GetCalculationLog();
     
-    // 撤销
+    // 撤销与重算 (新增)
     void Rollback(OrderContext context);
+    void RollbackLastCalculation();
+    EnhancedCalculationResult RecalculateWithSameParameters();
 }
 ```
 
-### 3.3 数据模型
+### 3.3 增强的数据模型
 
-#### OrderContext
+#### ApplicableScope - 适用范围配置
 ```csharp
-public class OrderContext
+public class ApplicableScope
+{
+    public List<string> ProductIds { get; set; }     // 指定商品ID列表
+    public List<string> CategoryIds { get; set; }    // 指定类目ID列表
+    public List<string> StoreIds { get; set; }       // 指定门店ID列表
+    public List<string> BrandIds { get; set; }       // 指定品牌ID列表
+    public List<string> TagIds { get; set; }         // 指定标签ID列表
+    
+    public bool IsAllApplicable { get; }  // 是否全场适用
+    public string GetScopeDescription();  // 获取范围描述
+}
+```
+
+#### ExcludedScope - 排除范围配置
+```csharp
+public class ExcludedScope
+{
+    public List<string> ProductIds { get; set; }     // 排除商品ID列表
+    public List<string> CategoryIds { get; set; }   // 排除类目ID列表
+    public List<string> StoreIds { get; set; }      // 排除门店ID列表
+    
+    public bool HasAnyExclusion { get; }  // 是否有排除项
+    public string GetExclusionDescription();  // 获取排除描述
+}
+```
+
+#### UsageCondition - 使用条件
+```csharp
+public class UsageCondition
+{
+    public decimal? MinOrderAmount { get; set; }           // 最低消费金额
+    public int? MinQuantity { get; set; }                 // 最低购买数量
+    public decimal? MaxOrderAmount { get; set; }          // 最高消费金额
+    public int? MaxQuantity { get; set; }                 // 最高购买数量
+    public List<MemberLevel>? AllowedMemberLevels { get; set; }  // 允许的会员等级
+    public List<string>? AllowedUserIds { get; set; }     // 允许的用户ID
+    public List<string>? AllowedStoreIds { get; set; }    // 允许的门店ID
+    public DateTime? ValidFrom { get; set; }              // 开始时间
+    public DateTime? ValidTo { get; set; }                // 结束时间
+    public int? MaxUsageCount { get; set; }               // 最大使用次数
+    public int? MaxUsagePerUser { get; set; }             // 每用户最大使用次数
+    public bool? RequireFirstOrder { get; set; }           // 是否限首单
+    public decimal? MinDistanceKm { get; set; }           // 最小配送距离
+    public decimal? MaxDistanceKm { get; set; }           // 最大配送距离
+}
+```
+
+#### EnhancedCalculationResult - 增强计算结果
+```csharp
+public class EnhancedCalculationResult
 {
     public string OrderId { get; set; }
-    public List<OrderItem> Items { get; set; }
-    public MemberInfo Member { get; set; }
-    public ShippingInfo Shipping { get; set; }
-    public decimal OriginalAmount { get; }
-    public decimal FreightAmount { get; set; }
-    public DateTime CreatedAt { get; }
-    public Dictionary<string, object> ExtendedData { get; }
+    public decimal OriginalAmount { get; set; }
+    public decimal OriginalFreight { get; set; }
+    public List<CandidatePlan> CandidatePlans { get; set; }  // 候选方案列表
+    public CandidatePlan? RecommendedPlan { get; set; }     // 推荐方案
+    public PlanComparison Comparison { get; set; }           // 方案对比
+    public CalculationMetadata Metadata { get; set; }        // 计算元数据
 }
-```
 
-#### Coupon
-```csharp
-public class Coupon
+public class CandidatePlan
+{
+    public string PlanId { get; set; }
+    public string PlanName { get; set; }
+    public int Rank { get; set; }
+    public bool IsRecommended { get; set; }
+    public List<AppliedCouponDetail> AppliedCoupons { get; set; }
+    public decimal TotalDiscountAmount { get; set; }
+    public decimal FinalTotalAmount { get; set; }
+    public List<string> Advantages { get; set; }   // 方案优点
+    public List<string> Limitations { get; set; }  // 方案限制
+}
+
+public class AppliedCouponDetail
 {
     public string CouponId { get; set; }
     public string CouponCode { get; set; }
+    public string CouponName { get; set; }
     public CouponType Type { get; set; }
-    public decimal DiscountValue { get; set; }
-    public decimal? MaxDiscountAmount { get; set; }
-    public decimal MinOrderAmount { get; set; }
-    public int MinQuantity { get; set; }
-    public DateTime ValidFrom { get; set; }
-    public DateTime ValidTo { get; set; }
-    public string[] ApplicableProductIds { get; set; }
-    public string[] ApplicableCategoryIds { get; set; }
-    public string[] ExcludedProductIds { get; set; }
-    public int Priority { get; set; }
-    public string StackingGroup { get; set; }
-    public bool CanStackWithSameType { get; set; }
-    public MemberLevel? RequiredMemberLevel { get; set; }
-}
-```
-
-#### CalculationResult
-```csharp
-public class CalculationResult
-{
-    public decimal OriginalAmount { get; set; }
     public decimal DiscountAmount { get; set; }
-    public decimal FreightDiscount { get; set; }
-    public decimal FinalAmount { get; set; }
-    public List<AppliedCoupon> AppliedCoupons { get; set; }
-    public List<DiscountDetail> DiscountDetails { get; set; }
-    public Explanation Explanation { get; set; }
+    public string ScopeDescription { get; set; }   // 适用范围描述
+    public string Reason { get; set; }              // 应用原因
+    public List<string> AppliedConditions { get; set; }
 }
 ```
 
-### 3.4 枚举定义
-
+#### EnhancedCouponTrialResult - 增强试算结果
 ```csharp
-public enum CouponType
+public class EnhancedCouponTrialResult
 {
-    AmountOff,          // 满减券（如满100减10）
-    DiscountRate,      // 折扣券（如8折）
-    QuantityDiscount,  // 满件折（如买2件8折）
-    FreeShipping,      // 免运费券
-    MemberExclusive,   // 会员专享价
+    public Coupon Coupon { get; set; }
+    public bool IsAvailable { get; set; }
+    public TrialStatus Status { get; set; }
+    public string StatusMessage { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public List<TrialCheckResult> CheckResults { get; set; }  // 详细校验结果
+    public List<string> UnavailableReasons { get; set; }
+    public UserFriendlyExplanation UserExplanation { get; set; }  // 用户友好的解释
 }
 
-public enum MemberLevel
+public class TrialCheckResult
 {
-    Normal = 0,
-    Silver = 1,
-    Gold = 2,
-    Platinum = 3,
-    Diamond = 4
-}
-
-public enum DisplayFormat
-{
-    Simple,     // 简洁格式
-    Detailed,   // 详细格式
-    Bill        // 账单格式
+    public string CheckName { get; set; }
+    public CheckType Type { get; set; }
+    public bool Passed { get; set; }
+    public string Message { get; set; }
+    public string UserFriendlyMessage { get; set; }  // 用户可见的消息
 }
 ```
 
@@ -275,7 +362,12 @@ public enum DisplayFormat
 3. 动态规划处理互斥组选择
 4. 回溯验证最优解
 
-### 5.2 约束条件
+### 5.2 增强算法
+- **多方案生成**: 生成多个候选方案（最大优惠、简约、叠加最优等）
+- **方案对比**: 提供各方案的优缺点说明
+- **推荐方案**: 自动推荐最优方案
+
+### 5.3 约束条件
 - 满足所有优惠券的门槛条件
 - 遵守叠加规则和互斥限制
 - 不超过最大优惠金额限制
@@ -293,6 +385,8 @@ public enum DisplayFormat
 - 最优组合测试
 - 会员折扣测试
 - 运费计算测试
+- **新增**: 边界场景测试（空订单、零金额、刚好门槛、撤销重算）
+- **新增**: 增强功能测试（多方案、详细试算、适用范围）
 
 ### 6.2 测试项目
 创建 `CouponCalculator.Tests` 项目，使用 xUnit 框架。
@@ -301,18 +395,13 @@ public enum DisplayFormat
 
 ## 7. API 使用示例
 
+### 7.1 基础使用
+
 ```csharp
-// 1. 创建引擎
 var engine = new CouponCalculatorEngine();
 
-// 2. 加载优惠规则
-engine.LoadRules(new DefaultRuleProvider());
-
-// 3. 创建订单上下文
-var context = engine.CreateOrderContext();
-context.OrderId = "ORDER123456";
-
-engine.AddItem(context, new OrderItem 
+var context = engine.CreateOrderContext("ORDER123456");
+context.AddItem(new OrderItem 
 {
     ProductId = "PROD001",
     ProductName = "商品A",
@@ -327,24 +416,91 @@ engine.SetMember(context, new MemberInfo
     Level = MemberLevel.Gold
 });
 
-// 4. 试算可用优惠券
 var coupons = new List<Coupon>
 {
-    new Coupon { CouponId = "C1", Type = CouponType.AmountOff, DiscountValue = 20, MinOrderAmount = 100 },
-    new Coupon { CouponId = "C2", Type = CouponType.DiscountRate, DiscountValue = 0.9m, MinOrderAmount = 50 },
-    new Coupon { CouponId = "C3", Type = CouponType.FreeShipping }
+    new Coupon 
+    { 
+        CouponId = "C1", 
+        Type = CouponType.AmountOff, 
+        DiscountValue = 20, 
+        MinOrderAmount = 100 
+    },
+    new Coupon 
+    { 
+        CouponId = "C2", 
+        Type = CouponType.DiscountRate, 
+        DiscountValue = 0.9m, 
+        MinOrderAmount = 50 
+    },
+    new Coupon 
+    { 
+        CouponId = "C3", 
+        Type = CouponType.FreeShipping 
+    }
 };
 
 var available = engine.GetAvailableCoupons(context, coupons);
-
-// 5. 计算最优组合
 var result = engine.CalculateOptimal(context, coupons);
-
-// 6. 格式化展示
-var displayText = engine.FormatDetails(result, DisplayFormat.Detailed);
-
-// 7. 获取计算日志
+var display = engine.FormatDetails(result, DisplayFormat.Detailed);
 var log = engine.GetCalculationLog();
+```
+
+### 7.2 增强使用（多方案对比）
+
+```csharp
+var result = engine.CalculateOptimalEnhanced(context, coupons);
+
+// 获取所有候选方案
+foreach (var plan in result.CandidatePlans)
+{
+    Console.WriteLine($"{plan.PlanName}: 节省 ¥{plan.TotalDiscountAmount:F2}");
+}
+
+// 获取推荐方案
+var recommended = result.RecommendedPlan;
+
+// 获取结算页面数据
+var settlementData = engine.GetSettlementPageData(result, context);
+
+// 格式化输出
+var formatted = engine.FormatEnhancedResult(result, context, DisplayFormat.Bill);
+```
+
+### 7.3 灵活适用范围配置
+
+```csharp
+var coupon = new Coupon
+{
+    CouponId = "C1",
+    CouponCode = "MIXED-SCOPE",
+    Type = CouponType.DiscountRate,
+    DiscountValue = 0.8m,
+    
+    // 适用范围
+    ApplicableScope = new ApplicableScope
+    {
+        ProductIds = new List<string> { "SKU-001", "SKU-002" },
+        CategoryIds = new List<string> { "CATE-001" }
+    },
+    
+    // 排除范围
+    ExcludedScope = new ExcludedScope
+    {
+        ProductIds = new List<string> { "SKU-EXCLUDE" }
+    },
+    
+    // 使用条件
+    UsageCondition = new UsageCondition
+    {
+        MinOrderAmount = 100m,
+        AllowedMemberLevels = new List<MemberLevel> 
+        { 
+            MemberLevel.Gold, 
+            MemberLevel.Platinum, 
+            MemberLevel.Diamond 
+        }
+    }
+};
 ```
 
 ---
@@ -363,6 +519,12 @@ var log = engine.GetCalculationLog();
 - [x] 能返回不可用原因
 - [x] 能生成展示文案
 - [x] 能记录计算过程
+- [x] **新增**: 支持灵活的适用范围配置
+- [x] **新增**: 返回多个候选方案
+- [x] **新增**: 提供方案对比说明
+- [x] **新增**: 生成用户友好的解释文案
+- [x] **新增**: 边界条件正确处理
+- [x] **新增**: 撤销后重算保持一致
 
 ### 8.2 质量验收
 - [x] 代码编译无错误
@@ -370,6 +532,8 @@ var log = engine.GetCalculationLog();
 - [x] API 设计清晰易用
 - [x] 注释完整规范
 - [x] 支持扩展规则和提供者
+- [x] **新增**: 完整的工作流示例
+- [x] **新增**: 详细的接入指南
 
 ---
 
@@ -384,3 +548,37 @@ var log = engine.GetCalculationLog();
 
 ### 9.3 验证扩展
 - 实现 `ICouponValidator` 接口自定义验证逻辑
+
+### 9.4 优化器扩展
+- 实现自定义的组合优化算法
+
+---
+
+## 10. 文档
+
+### 10.1 示例项目
+`CouponCalculator.Examples` 项目包含：
+- `UsageExamples.cs` - 基础使用示例
+- `CompleteWorkflowExamples.cs` - 完整工作流演示
+
+### 10.2 接入指南
+`INTEGRATION_GUIDE.md` 包含：
+- 快速开始指南
+- 完整功能清单
+- 数据结构说明
+- 使用场景示例
+- 最佳实践
+- 常见问题
+
+---
+
+## 11. 版本历史
+
+### v2.0 (当前版本)
+- **增强规则配置**: 支持商品、类目、门店、品牌、标签等多维度配置
+- **增强适用范围**: 支持正向指定和反向排除
+- **增强最优组合**: 返回多个候选方案及对比说明
+- **增强试算结果**: 返回详细的校验过程和用户友好的解释
+- **增强撤销重算**: 支持撤销和相同参数重算
+- **完整边界测试**: 覆盖空订单、零金额、刚好门槛等场景
+- **完整示例文档**: 提供工作流示例和接入指南

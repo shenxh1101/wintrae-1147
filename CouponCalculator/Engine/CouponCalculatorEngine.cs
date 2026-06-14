@@ -8,30 +8,42 @@ namespace CouponCalculator.Engine;
 public class CouponCalculatorEngine
 {
     private readonly ICouponValidator _validator;
+    private readonly EnhancedCouponValidator _enhancedValidator;
     private readonly IStackingEngine _stackingEngine;
     private readonly ExplanationService _explanationService;
+    private readonly EnhancedExplanationService _enhancedExplanationService;
     private readonly CalculationLogger _logger;
     private readonly CombinationOptimizer _optimizer;
+    private readonly EnhancedCombinationOptimizer _enhancedOptimizer;
     private IRuleProvider _ruleProvider;
     private CalculationLog? _currentLog;
+    private OrderContext? _lastContext;
+    private List<Coupon>? _lastCoupons;
+    private EnhancedCalculationResult? _lastResult;
 
     public CouponCalculatorEngine()
     {
         _validator = new CouponValidator();
+        _enhancedValidator = new EnhancedCouponValidator();
         _stackingEngine = new StackingEngine();
         _explanationService = new ExplanationService();
+        _enhancedExplanationService = new EnhancedExplanationService();
         _logger = new CalculationLogger();
         _optimizer = new CombinationOptimizer(_stackingEngine);
+        _enhancedOptimizer = new EnhancedCombinationOptimizer(_stackingEngine);
         _ruleProvider = new DefaultRuleProvider();
     }
 
     public CouponCalculatorEngine(IRuleProvider ruleProvider)
     {
         _validator = new CouponValidator();
+        _enhancedValidator = new EnhancedCouponValidator();
         _stackingEngine = new StackingEngine();
         _explanationService = new ExplanationService();
+        _enhancedExplanationService = new EnhancedExplanationService();
         _logger = new CalculationLogger();
         _optimizer = new CombinationOptimizer(_stackingEngine);
+        _enhancedOptimizer = new EnhancedCombinationOptimizer(_stackingEngine);
         _ruleProvider = ruleProvider;
     }
 
@@ -106,6 +118,29 @@ public class CouponCalculatorEngine
         return result;
     }
 
+    public EnhancedCouponTrialResult TryApplyEnhanced(OrderContext context, Coupon coupon)
+    {
+        _currentLog = _logger.CreateLog(context.OrderId);
+        _logger.AddEntry(_currentLog, coupon.CouponId, "Start", $"开始增强试算优惠券 {coupon.CouponCode}", true);
+
+        var result = _enhancedValidator.GetDetailedTrialResult(coupon, context);
+
+        if (result.IsAvailable)
+        {
+            result.DiscountAmount = CalculateCouponDiscount(coupon, context);
+            
+            if (coupon.Type == CouponType.FreeShipping)
+            {
+                result.DiscountAmount = context.FreightAmount;
+            }
+        }
+
+        _logger.AddEntry(_currentLog, coupon.CouponId, "Validation", 
+            result.IsAvailable ? "优惠券可用" : "优惠券不可用", result.IsAvailable, result.DiscountAmount);
+
+        return result;
+    }
+
     public IEnumerable<CouponTrialResult> GetAvailableCoupons(OrderContext context, IEnumerable<Coupon> coupons)
     {
         var results = new List<CouponTrialResult>();
@@ -117,6 +152,13 @@ public class CouponCalculatorEngine
         }
 
         return results;
+    }
+
+    public IEnumerable<EnhancedCouponTrialResult> GetAvailableCouponsEnhanced(
+        OrderContext context, 
+        IEnumerable<Coupon> coupons)
+    {
+        return coupons.Select(c => TryApplyEnhanced(context, c)).ToList();
     }
 
     public CalculationResult CalculateOptimal(OrderContext context, IEnumerable<Coupon> coupons)
@@ -153,7 +195,7 @@ public class CouponCalculatorEngine
 
         result.Explanation.RejectedReasons = rejectedCoupons;
 
-        var optimizedCoupons = _optimizer.GreedyOptimize(
+        var optimizedCoupons = _optimizer.Optimize(
             availableCoupons,
             context,
             (coupon, ctx) => CalculateCouponDiscount(coupon, ctx)
@@ -241,6 +283,80 @@ public class CouponCalculatorEngine
         return result;
     }
 
+    public EnhancedCalculationResult CalculateOptimalEnhanced(
+        OrderContext context, 
+        IEnumerable<Coupon> coupons)
+    {
+        _lastContext = context;
+        _lastCoupons = coupons.ToList();
+
+        _currentLog = _logger.CreateLog(context.OrderId);
+        var couponList = _lastCoupons;
+
+        _currentLog.OriginalAmount = context.OriginalAmount;
+        _currentLog.CouponsTested = couponList.Count;
+
+        var trialResults = GetAvailableCouponsEnhanced(context, couponList).ToList();
+        var availableCoupons = trialResults
+            .Where(r => r.IsAvailable && r.DiscountAmount > 0)
+            .Select(r => r.Coupon)
+            .ToList();
+
+        var memberDiscounts = new List<MemberDiscountDetail>();
+        if (context.Member != null)
+        {
+            var memberDiscountAmount = CalculateMemberDiscount(context);
+            if (memberDiscountAmount > 0)
+            {
+                memberDiscounts.Add(new MemberDiscountDetail
+                {
+                    MemberLevel = context.Member.Level,
+                    MemberLevelName = GetMemberLevelName(context.Member.Level),
+                    DiscountRate = context.Member.GetDiscountRate(),
+                    DiscountAmount = memberDiscountAmount,
+                    Reason = $"您的{GetMemberLevelName(context.Member.Level)}可享受 {(1 - context.Member.GetDiscountRate()) * 100:F0}% 折扣"
+                });
+            }
+        }
+
+        var freightDiscounts = new List<FreightDiscountDetail>();
+        var freeShippingCoupons = trialResults
+            .Where(r => r.IsAvailable && r.Coupon.Type == CouponType.FreeShipping)
+            .ToList();
+
+        if (freeShippingCoupons.Any())
+        {
+            freightDiscounts.Add(new FreightDiscountDetail
+            {
+                OriginalFreight = context.FreightAmount,
+                DiscountAmount = context.FreightAmount,
+                FinalFreight = 0,
+                Reason = "使用免运费券"
+            });
+        }
+
+        _lastResult = _enhancedOptimizer.Optimize(
+            context,
+            availableCoupons,
+            memberDiscounts,
+            freightDiscounts,
+            (coupon, ctx) => CalculateCouponDiscount(coupon, ctx)
+        );
+
+        foreach (var plan in _lastResult.CandidatePlans)
+        {
+            foreach (var coupon in plan.AppliedCoupons)
+            {
+                _logger.AddEntry(_currentLog, coupon.CouponId, "Apply", 
+                    $"应用优惠券 {coupon.CouponCode} 于方案 {plan.PlanName}", true, coupon.DiscountAmount);
+            }
+        }
+
+        var explanation = _enhancedExplanationService.GenerateExplanation(_lastResult, context, trialResults);
+        
+        return _lastResult;
+    }
+
     public Explanation Explain(Coupon coupon, OrderContext context)
     {
         var validationResult = _validator.Validate(coupon, context);
@@ -256,6 +372,11 @@ public class CouponCalculatorEngine
         }
     }
 
+    public EnhancedCouponTrialResult ExplainEnhanced(Coupon coupon, OrderContext context)
+    {
+        return TryApplyEnhanced(context, coupon);
+    }
+
     public string FormatDetails(CalculationResult result, DisplayFormat format)
     {
         IResultFormatter formatter = format switch
@@ -269,6 +390,22 @@ public class CouponCalculatorEngine
         return formatter.Format(result);
     }
 
+    public string FormatEnhancedResult(EnhancedCalculationResult result, OrderContext context, DisplayFormat format)
+    {
+        return format switch
+        {
+            DisplayFormat.Simple => _enhancedExplanationService.GenerateUserFriendlySummary(result, context),
+            DisplayFormat.Detailed => _enhancedExplanationService.GenerateComparisonTable(result),
+            DisplayFormat.Bill => FormatEnhancedBill(result, context),
+            _ => _enhancedExplanationService.GenerateUserFriendlySummary(result, context)
+        };
+    }
+
+    public Dictionary<string, object> GetSettlementPageData(EnhancedCalculationResult result, OrderContext context)
+    {
+        return _enhancedExplanationService.GenerateSettlementPageData(result, context);
+    }
+
     public CalculationLog GetCalculationLog()
     {
         return _currentLog ?? new CalculationLog();
@@ -277,6 +414,24 @@ public class CouponCalculatorEngine
     public void Rollback(OrderContext context)
     {
         context.ClearAppliedCoupons();
+    }
+
+    public void RollbackLastCalculation()
+    {
+        if (_lastContext != null)
+        {
+            Rollback(_lastContext);
+        }
+    }
+
+    public EnhancedCalculationResult RecalculateWithSameParameters()
+    {
+        if (_lastContext == null || _lastCoupons == null)
+        {
+            throw new InvalidOperationException("没有可重新计算的上下文，请先调用 CalculateOptimalEnhanced");
+        }
+
+        return CalculateOptimalEnhanced(_lastContext, _lastCoupons);
     }
 
     private decimal CalculateCouponDiscount(Coupon coupon, OrderContext context)
@@ -337,5 +492,113 @@ public class CouponCalculatorEngine
             CouponType.MemberExclusive => "会员专享",
             _ => coupon.CouponCode
         };
+    }
+
+    private static string GetMemberLevelName(MemberLevel level)
+    {
+        return level switch
+        {
+            MemberLevel.Normal => "普通会员",
+            MemberLevel.Silver => "银卡会员",
+            MemberLevel.Gold => "金卡会员",
+            MemberLevel.Platinum => "白金会员",
+            MemberLevel.Diamond => "钻石会员",
+            _ => level.ToString()
+        };
+    }
+
+    private string FormatEnhancedBill(EnhancedCalculationResult result, OrderContext context)
+    {
+        var lines = new List<string>();
+        var width = 45;
+
+        lines.Add(AlignCenter("● 订单优惠账单 ●", width));
+        lines.Add(new string('═', width));
+        lines.Add($"  订单号: {result.OrderId}");
+        lines.Add($"  计算时间: {result.CalculatedAt:yyyy-MM-dd HH:mm:ss}");
+        lines.Add(new string('─', width));
+
+        lines.Add(AlignLeft("【商品金额】", width));
+        lines.Add(AlignRight($"¥{result.OriginalAmount:F2}", width));
+
+        if (result.OriginalFreight > 0)
+        {
+            lines.Add(AlignLeft("【运费】", width));
+            lines.Add(AlignRight($"¥{result.OriginalFreight:F2}", width));
+        }
+
+        lines.Add(new string('─', width));
+
+        if (result.CandidatePlans.Any())
+        {
+            var plan = result.CandidatePlans.First();
+            
+            if (plan.ProductDiscountAmount > 0)
+            {
+                lines.Add(AlignLeft("【商品优惠】", width));
+                foreach (var coupon in plan.AppliedCoupons.Where(c => c.Type != CouponType.FreeShipping))
+                {
+                    lines.Add($"  · {coupon.CouponCode}");
+                    lines.Add(AlignRight($"-¥{coupon.DiscountAmount:F2}", width));
+                }
+            }
+
+            if (plan.FreightDiscountAmount > 0)
+            {
+                lines.Add(AlignLeft("【运费优惠】", width));
+                lines.Add(AlignRight($"-¥{plan.FreightDiscountAmount:F2}", width));
+            }
+
+            if (plan.MemberDiscountAmount > 0)
+            {
+                lines.Add(AlignLeft("【会员折扣】", width));
+                lines.Add(AlignRight($"-¥{plan.MemberDiscountAmount:F2}", width));
+            }
+        }
+
+        lines.Add(new string('═', width));
+        lines.Add(AlignLeft("应付总额", width, true));
+        lines.Add(AlignRight($"¥{result.RecommendedPlan?.FinalTotalAmount ?? (result.OriginalAmount + result.OriginalFreight):F2}", width, true));
+
+        if (result.CandidatePlans.Count > 1)
+        {
+            lines.Add("");
+            lines.Add(AlignCenter("【其他可用方案】", width));
+            lines.Add(new string('─', width));
+
+            foreach (var otherPlan in result.CandidatePlans.Skip(1).Take(3))
+            {
+                lines.Add($"{otherPlan.PlanName}: 节省 ¥{otherPlan.TotalDiscountAmount:F2} → ¥{otherPlan.FinalTotalAmount:F2}");
+            }
+        }
+
+        lines.Add(new string('═', width));
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string AlignLeft(string text, int width, bool bold = false)
+    {
+        var prefix = bold ? "★ " : "  ";
+        var padding = width - GetDisplayLength(text) - 2;
+        return prefix + text + new string(' ', Math.Max(0, padding));
+    }
+
+    private static string AlignRight(string text, int width, bool bold = false)
+    {
+        var prefix = bold ? "★ " : "  ";
+        var padding = width - GetDisplayLength(text) - 2;
+        return prefix + new string(' ', Math.Max(0, padding)) + text;
+    }
+
+    private static string AlignCenter(string text, int width)
+    {
+        var padding = (width - GetDisplayLength(text)) / 2;
+        return new string(' ', Math.Max(0, padding)) + text;
+    }
+
+    private static int GetDisplayLength(string text)
+    {
+        return text.Length;
     }
 }
