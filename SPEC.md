@@ -607,7 +607,12 @@ var coupon = new Coupon
 - 区域灰度：按地域进行灰度发布
 - 发布前回放：支持批量回放历史订单验证效果
 - 差异对比：查看不同灰度范围的结算差异
-- **新增模型**: `GrayReleasePolicy`, `GrayScaleConfig`, `GrayTarget`, `GrayPlaybackResult`, `BatchPlaybackResult`
+- **新增**: 风险评估：自动评估灰度发布风险等级
+- **新增**: 建议放量：根据风险分析给出建议放量范围
+- **新增**: 回滚预案：自动生成回滚触发条件和操作步骤
+- **新增**: 风险订单识别：识别最容易出问题的订单
+- **新增**: 监控告警：实时监控灰度发布状态
+- **新增模型**: `GrayReleasePolicy`, `GrayScaleConfig`, `GrayTarget`, `GrayPlaybackResult`, `BatchPlaybackResult`, `GrayRiskAssessment`, `RecommendedScaleRange`, `RollbackPlan`, `RiskyOrder`
 - **新增服务**: `GrayReleaseManager`
 
 ### 11.3 口径模板与回放
@@ -616,8 +621,12 @@ var coupon = new Coupon
 - 多视角说明：统一口径供客服、运营、财务查看
 - 相似模板：自动查找相似订单模板
 - 模板对比：对比两个模板的差异
-- **新增模型**: `CalculationTemplate`, `TemplateSnapshot`, `UnifiedExplanation`, `TemplatePlaybackResult`
-- **新增服务**: `TemplatePlaybackService`, `TemplateManagementService`
+- **新增**: 多角色协作：运营、客服、财务共用口径并各自补充备注
+- **新增**: 处理结论：各角色可添加处理结论和审批流程
+- **新增**: 自动带出：根据订单特征自动带出历史口径说明
+- **新增**: 模板匹配：自动匹配相似订单模板
+- **新增模型**: `CalculationTemplate`, `TemplateSnapshot`, `UnifiedExplanation`, `TemplatePlaybackResult`, `TemplateCollaboration`, `RoleAnnotation`, `ProcessingConclusion`, `TemplateAutoFill`
+- **新增服务**: `TemplatePlaybackService`, `TemplateManagementService`, `TemplateCollaborationService`
 
 ### 11.4 批量对账
 - 按天对账：支持每日批量订单对账
@@ -626,8 +635,12 @@ var coupon = new Coupon
 - 异常检测：自动识别异常订单
 - 分组统计：按渠道、店铺、会员等级分组统计
 - 运营导出：支持CSV/Excel/JSON/HTML/PDF多种导出格式
-- **新增模型**: `BatchReconciliationRequest`, `BatchReconciliationResult`, `ReconciliationSummary`, `AnomalyOrder`
-- **新增服务**: `BatchReconciliationService`, `ExportService`
+- **新增**: 异常分层：自动分类异常订单（规则变动、券状态变动、外部口径不一致）
+- **新增**: 分类说明导出：导出时带上适合运营复盘的分类说明
+- **新增**: 严重程度分级：Critical/High/Medium/Low四级分类
+- **新增**: 原因分析：自动分析异常原因和影响范围
+- **新增模型**: `BatchReconciliationRequest`, `BatchReconciliationResult`, `ReconciliationSummary`, `AnomalyOrder`, `AnomalyClassification`, `AnomalyLayerSummary`, `AnomalyClassificationResult`
+- **新增服务**: `BatchReconciliationService`, `ExportService`, `AnomalyClassifier`
 
 ### 11.5 商品级分摊
 - 商品级明细：每件商品分摊优惠券、会员折扣
@@ -647,6 +660,9 @@ var coupon = new Coupon
 - 字段缺失：缺失字段检测和警告
 - 券状态变化：券状态变化检测
 - 部分失败：批量处理部分失败处理
+- **新增**: 重试恢复：首次失败后重试成功的完整流程
+- **新增**: 多系统不一致：本地SDK、支付系统、订单系统结果对比
+- **新增**: 字段映射验证：改完字段映射后的验证流程
 - 重试机制：失败自动重试
 
 ### 12.2 真实业务示例

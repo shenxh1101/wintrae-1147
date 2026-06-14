@@ -38,6 +38,15 @@ public static class RealIntegrationWithErrorHandling
         Console.WriteLine("\n" + new string('=', 70) + "\n");
 
         await Scenario6_BatchProcessingWithRetry(integration);
+        Console.WriteLine("\n" + new string('=', 70) + "\n");
+        
+        await Scenario7_RetryRecovery(integration);
+        Console.WriteLine("\n" + new string('=', 70) + "\n");
+        
+        await Scenario8_MultiSystemInconsistency(integration);
+        Console.WriteLine("\n" + new string('=', 70) + "\n");
+        
+        await Scenario9_FieldMappingValidation(integration);
     }
 
     private static async Task Scenario1_NormalFlow(RobustCouponIntegration integration)
@@ -232,6 +241,192 @@ public static class RealIntegrationWithErrorHandling
         Console.WriteLine($"  失败: {batchResult.FailedCount}");
         Console.WriteLine($"  重试次数: {batchResult.TotalRetries}");
         Console.WriteLine($"  总耗时: {batchResult.TotalTimeMs}ms");
+    }
+    
+    private static async Task Scenario7_RetryRecovery(RobustCouponIntegration integration)
+    {
+        Console.WriteLine("【场景7: 重试后恢复正常】\n");
+        
+        var request = new CouponCalculationRequest
+        {
+            OrderId = "ORDER-RETRY-001",
+            UserId = "USER-RETRY",
+            Items = new List<OrderItemDto>
+            {
+                new OrderItemDto { ProductId = "SKU-001", Price = 150m, Quantity = 1 }
+            },
+            CouponIds = new List<string> { "COUPON-RETRY-001" }
+        };
+        
+        Console.WriteLine("模拟第一次请求失败...");
+        var failResult = await integration.CalculateWithRetrySimulation(request, simulateFirstFailure: true);
+        Console.WriteLine($"  第一次结果: {failResult.Status}");
+        Console.WriteLine($"  错误信息: {failResult.ErrorMessage}");
+        Console.WriteLine($"  重试次数: {failResult.RetryCount}");
+        
+        Console.WriteLine("\n模拟重试后成功...");
+        var successResult = await integration.CalculateWithRetrySimulation(request, simulateFirstFailure: false);
+        Console.WriteLine($"  重试结果: {successResult.Status}");
+        if (successResult.Success)
+        {
+            Console.WriteLine($"  ✓ 最终成功");
+            Console.WriteLine($"    原始金额: ¥{successResult.Data.OriginalAmount:F2}");
+            Console.WriteLine($"    优惠金额: ¥{successResult.Data.TotalDiscount:F2}");
+            Console.WriteLine($"    最终金额: ¥{successResult.Data.FinalAmount:F2}");
+        }
+        
+        Console.WriteLine("\n重试恢复流程说明:");
+        Console.WriteLine("  1. 首次请求失败时记录错误和重试信息");
+        Console.WriteLine("  2. 根据错误类型决定是否重试");
+        Console.WriteLine("  3. 重试时使用相同参数重新发起请求");
+        Console.WriteLine("  4. 成功后对比前后结果，确认一致性");
+    }
+    
+    private static async Task Scenario8_MultiSystemInconsistency(RobustCouponIntegration integration)
+    {
+        Console.WriteLine("【场景8: 多系统返回结果不一致】\n");
+        
+        var request = new CouponCalculationRequest
+        {
+            OrderId = "ORDER-MULTI-001",
+            UserId = "USER-MULTI",
+            Items = new List<OrderItemDto>
+            {
+                new OrderItemDto { ProductId = "SKU-001", Price = 200m, Quantity = 2 }
+            },
+            CouponIds = new List<string> { "COUPON-MULTI-001", "COUPON-MULTI-002" }
+        };
+        
+        Console.WriteLine("模拟多系统计算结果对比...");
+        
+        var localResult = await integration.CalculateWithFullHandling(request);
+        var paymentSystemResult = integration.SimulatePaymentSystemCalculation(request);
+        var orderSystemResult = integration.SimulateOrderSystemCalculation(request);
+        
+        Console.WriteLine("\n各系统计算结果:");
+        Console.WriteLine($"  本地SDK: ¥{localResult.Data?.FinalAmount ?? 0:F2}");
+        Console.WriteLine($"  支付系统: ¥{paymentSystemResult.FinalAmount:F2}");
+        Console.WriteLine($"  订单系统: ¥{orderSystemResult.FinalAmount:F2}");
+        
+        var inconsistency = integration.DetectInconsistency(localResult, paymentSystemResult, orderSystemResult);
+        
+        if (inconsistency.HasInconsistency)
+        {
+            Console.WriteLine("\n⚠ 检测到系统间不一致:");
+            Console.WriteLine($"  最大差异: ¥{inconsistency.MaxDifference:F2}");
+            Console.WriteLine($"  差异来源: {inconsistency.InconsistencySource}");
+            
+            Console.WriteLine("\n不一致处理建议:");
+            foreach (var suggestion in inconsistency.Suggestions)
+            {
+                Console.WriteLine($"  · {suggestion}");
+            }
+            
+            var reconciliation = integration.GenerateReconciliationExplanation(localResult, paymentSystemResult, orderSystemResult);
+            Console.WriteLine("\n对账说明:");
+            Console.WriteLine(reconciliation);
+        }
+        else
+        {
+            Console.WriteLine("\n✓ 各系统结果一致");
+        }
+        
+        Console.WriteLine("\n多系统不一致处理流程:");
+        Console.WriteLine("  1. 同时调用多个系统获取计算结果");
+        Console.WriteLine("  2. 对比各系统返回的最终金额");
+        Console.WriteLine("  3. 检测差异并定位不一致来源");
+        Console.WriteLine("  4. 生成对账说明供运营复盘");
+        Console.WriteLine("  5. 根据差异大小决定是否需要人工介入");
+    }
+    
+    private static async Task Scenario9_FieldMappingValidation(RobustCouponIntegration integration)
+    {
+        Console.WriteLine("【场景9: 字段映射验证】\n");
+        Console.WriteLine("模拟业务系统改完字段映射后的验证流程...\n");
+        
+        var testCases = new List<FieldMappingTestCase>
+        {
+            new FieldMappingTestCase
+            {
+                CaseName = "商品ID字段映射",
+                OldFieldName = "product_id",
+                NewFieldName = "ProductId",
+                TestValue = "SKU-MAP-001"
+            },
+            new FieldMappingTestCase
+            {
+                CaseName = "价格字段映射",
+                OldFieldName = "price",
+                NewFieldName = "Price",
+                TestValue = "100.50"
+            },
+            new FieldMappingTestCase
+            {
+                CaseName = "数量字段映射",
+                OldFieldName = "qty",
+                NewFieldName = "Quantity",
+                TestValue = "2"
+            },
+            new FieldMappingTestCase
+            {
+                CaseName = "会员等级字段映射",
+                OldFieldName = "member_level",
+                NewFieldName = "MemberLevel",
+                TestValue = "VIP"
+            }
+        };
+        
+        Console.WriteLine("字段映射验证结果:");
+        foreach (var testCase in testCases)
+        {
+            var validation = integration.ValidateFieldMapping(testCase);
+            Console.WriteLine($"  {testCase.CaseName}:");
+            Console.WriteLine($"    旧字段: {testCase.OldFieldName} → 新字段: {testCase.NewFieldName}");
+            Console.WriteLine($"    测试值: {testCase.TestValue}");
+            Console.WriteLine($"    验证结果: {validation.IsValid ? "✓ 通过" : "✗ 失败"}");
+            if (!validation.IsValid)
+            {
+                Console.WriteLine($"    错误: {validation.ErrorMessage}");
+            }
+            Console.WriteLine($"    映射后值: {validation.MappedValue}");
+        }
+        
+        Console.WriteLine("\n完整流程验证:");
+        var request = new CouponCalculationRequest
+        {
+            OrderId = "ORDER-MAP-VALIDATION",
+            UserId = "USER-MAP",
+            Items = new List<OrderItemDto>
+            {
+                new OrderItemDto { ProductId = "SKU-MAP-001", Price = 100.50m, Quantity = 2 }
+            },
+            MemberLevel = MemberLevel.VIP
+        };
+        
+        var result = await integration.CalculateWithFullHandling(request);
+        
+        Console.WriteLine("\n验证计算结果:");
+        if (result.ValidationResult?.MissingFields?.Any() == true)
+        {
+            Console.WriteLine("  ⚠ 存在缺失字段:");
+            foreach (var field in result.ValidationResult.MissingFields)
+            {
+                Console.WriteLine($"    - {field}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("  ✓ 所有字段映射正确");
+            Console.WriteLine($"    计算成功: {result.Success}");
+            Console.WriteLine($"    最终金额: ¥{result.Data?.FinalAmount ?? 0:F2}");
+        }
+        
+        Console.WriteLine("\n字段映射验证流程说明:");
+        Console.WriteLine("  1. 定义字段映射规则（旧字段名 → 新字段名）");
+        Console.WriteLine("  2. 对每个字段进行单独验证");
+        Console.WriteLine("  3. 验证映射后的值是否符合预期类型");
+        Console.WriteLine("  4. 使用完整请求验证整体流程");
+        Console.WriteLine("  5. 检查是否有缺失字段或类型不匹配");
     }
 }
 
@@ -594,6 +789,193 @@ public class RobustCouponIntegration
 
         return response;
     }
+    
+    public async Task<RetrySimulationResult> CalculateWithRetrySimulation(
+        CouponCalculationRequest request,
+        bool simulateFirstFailure)
+    {
+        var result = new RetrySimulationResult
+        {
+            OrderId = request.OrderId,
+            RetryCount = 0
+        };
+        
+        if (simulateFirstFailure)
+        {
+            result.Status = "Failed";
+            result.ErrorMessage = "模拟首次请求失败: 网络超时";
+            result.RetryCount = 1;
+            result.Success = false;
+            return result;
+        }
+        
+        var response = await CalculateWithFullHandling(request);
+        result.Status = response.Status.ToString();
+        result.Success = response.Success;
+        result.ErrorMessage = response.ErrorMessage ?? "";
+        result.RetryCount = 1;
+        
+        if (response.Success && response.Data != null)
+        {
+            result.Data = response.Data;
+        }
+        
+        return result;
+    }
+    
+    public SimulatedSystemResult SimulatePaymentSystemCalculation(CouponCalculationRequest request)
+    {
+        var totalAmount = request.Items?.Sum(i => i.Price * i.Quantity) ?? 0;
+        var discount = totalAmount * 0.12m;
+        
+        return new SimulatedSystemResult
+        {
+            SystemName = "支付系统",
+            FinalAmount = totalAmount - discount + 5m,
+            DiscountAmount = discount,
+            CalculationTime = DateTime.UtcNow,
+            AppliedCoupons = request.CouponIds?.ToList() ?? new List<string>(),
+            Notes = "支付系统计算结果，包含5元手续费调整"
+        };
+    }
+    
+    public SimulatedSystemResult SimulateOrderSystemCalculation(CouponCalculationRequest request)
+    {
+        var totalAmount = request.Items?.Sum(i => i.Price * i.Quantity) ?? 0;
+        var discount = totalAmount * 0.10m;
+        
+        return new SimulatedSystemResult
+        {
+            SystemName = "订单系统",
+            FinalAmount = totalAmount - discount,
+            DiscountAmount = discount,
+            CalculationTime = DateTime.UtcNow,
+            AppliedCoupons = request.CouponIds?.ToList() ?? new List<string>(),
+            Notes = "订单系统计算结果，标准折扣"
+        };
+    }
+    
+    public InconsistencyResult DetectInconsistency(
+        CouponCalculationResponse localResult,
+        SimulatedSystemResult paymentResult,
+        SimulatedSystemResult orderResult)
+    {
+        var localAmount = localResult.Data?.FinalAmount ?? 0;
+        var paymentAmount = paymentResult.FinalAmount;
+        var orderAmount = orderResult.FinalAmount;
+        
+        var differences = new List<decimal>
+        {
+            Math.Abs(localAmount - paymentAmount),
+            Math.Abs(localAmount - orderAmount),
+            Math.Abs(paymentAmount - orderAmount)
+        };
+        
+        var maxDiff = differences.Max();
+        
+        var result = new InconsistencyResult
+        {
+            HasInconsistency = maxDiff > 0.01m,
+            MaxDifference = maxDiff,
+            LocalAmount = localAmount,
+            PaymentAmount = paymentAmount,
+            OrderAmount = orderAmount
+        };
+        
+        if (result.HasInconsistency)
+        {
+            if (Math.Abs(localAmount - paymentAmount) > Math.Abs(localAmount - orderAmount))
+            {
+                result.InconsistencySource = "本地SDK与支付系统差异最大";
+            }
+            else
+            {
+                result.InconsistencySource = "本地SDK与订单系统差异最大";
+            }
+            
+            result.Suggestions = new List<string>
+            {
+                "检查各系统使用的规则版本是否一致",
+                "核对优惠券计算口径是否有差异",
+                "确认是否存在手续费或额外调整项",
+                "建议以订单系统结果为准进行对账"
+            };
+        }
+        
+        return result;
+    }
+    
+    public string GenerateReconciliationExplanation(
+        CouponCalculationResponse localResult,
+        SimulatedSystemResult paymentResult,
+        SimulatedSystemResult orderResult)
+    {
+        var lines = new List<string>();
+        
+        lines.Add("【多系统对账说明】");
+        lines.Add($"本地SDK: ¥{localResult.Data?.FinalAmount ?? 0:F2}");
+        lines.Add($"支付系统: ¥{paymentResult.FinalAmount:F2} ({paymentResult.Notes})");
+        lines.Add($"订单系统: ¥{orderResult.FinalAmount:F2} ({orderResult.Notes})");
+        lines.Add("");
+        lines.Add("差异分析:");
+        lines.Add($"  本地-支付: ¥{Math.Abs((localResult.Data?.FinalAmount ?? 0) - paymentResult.FinalAmount):F2}");
+        lines.Add($"  本地-订单: ¥{Math.Abs((localResult.Data?.FinalAmount ?? 0) - orderResult.FinalAmount):F2}");
+        lines.Add($"  支付-订单: ¥{Math.Abs(paymentResult.FinalAmount - orderResult.FinalAmount):F2}");
+        lines.Add("");
+        lines.Add("建议处理方式:");
+        lines.Add("  1. 以订单系统结果作为基准");
+        lines.Add("  2. 支付系统差异可能包含手续费调整");
+        lines.Add("  3. 如差异超过阈值，需人工复核");
+        
+        return string.Join(Environment.NewLine, lines);
+    }
+    
+    public FieldMappingValidationResult ValidateFieldMapping(FieldMappingTestCase testCase)
+    {
+        var result = new FieldMappingValidationResult
+        {
+            CaseName = testCase.CaseName,
+            OldFieldName = testCase.OldFieldName,
+            NewFieldName = testCase.NewFieldName
+        };
+        
+        try
+        {
+            switch (testCase.NewFieldName)
+            {
+                case "ProductId":
+                    result.MappedValue = testCase.TestValue;
+                    result.IsValid = !string.IsNullOrEmpty(testCase.TestValue);
+                    break;
+                case "Price":
+                    var price = decimal.Parse(testCase.TestValue);
+                    result.MappedValue = price.ToString("F2");
+                    result.IsValid = price > 0;
+                    break;
+                case "Quantity":
+                    var qty = int.Parse(testCase.TestValue);
+                    result.MappedValue = qty.ToString();
+                    result.IsValid = qty > 0;
+                    break;
+                case "MemberLevel":
+                    result.MappedValue = testCase.TestValue;
+                    result.IsValid = Enum.TryParse<MemberLevel>(testCase.TestValue, out _);
+                    break;
+                default:
+                    result.IsValid = false;
+                    result.ErrorMessage = "未知的字段类型";
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.IsValid = false;
+            result.ErrorMessage = ex.Message;
+            result.MappedValue = "映射失败";
+        }
+        
+        return result;
+    }
 }
 
 public class CouponCalculationRequest
@@ -737,4 +1119,53 @@ public class BatchProcessingResult
     public long TotalTimeMs { get; set; }
     public List<BatchSuccessItem> SuccessItems { get; set; } = new();
     public List<BatchFailedItem> FailedItems { get; set; } = new();
+}
+
+public class RetrySimulationResult
+{
+    public string OrderId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public bool Success { get; set; }
+    public string ErrorMessage { get; set; } = string.Empty;
+    public int RetryCount { get; set; }
+    public CouponCalculationData Data { get; set; }
+}
+
+public class SimulatedSystemResult
+{
+    public string SystemName { get; set; } = string.Empty;
+    public decimal FinalAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public DateTime CalculationTime { get; set; }
+    public List<string> AppliedCoupons { get; set; } = new();
+    public string Notes { get; set; } = string.Empty;
+}
+
+public class InconsistencyResult
+{
+    public bool HasInconsistency { get; set; }
+    public decimal MaxDifference { get; set; }
+    public decimal LocalAmount { get; set; }
+    public decimal PaymentAmount { get; set; }
+    public decimal OrderAmount { get; set; }
+    public string InconsistencySource { get; set; } = string.Empty;
+    public List<string> Suggestions { get; set; } = new();
+}
+
+public class FieldMappingTestCase
+{
+    public string CaseName { get; set; } = string.Empty;
+    public string OldFieldName { get; set; } = string.Empty;
+    public string NewFieldName { get; set; } = string.Empty;
+    public string TestValue { get; set; } = string.Empty;
+}
+
+public class FieldMappingValidationResult
+{
+    public string CaseName { get; set; } = string.Empty;
+    public string OldFieldName { get; set; } = string.Empty;
+    public string NewFieldName { get; set; } = string.Empty;
+    public bool IsValid { get; set; }
+    public string ErrorMessage { get; set; } = string.Empty;
+    public string MappedValue { get; set; } = string.Empty;
 }
